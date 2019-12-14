@@ -39,20 +39,29 @@ class Mon : public Monitor{
 			logFileName += std::to_string(id) += ".txt";
 			while(true){
 				enter();
+				std::this_thread::sleep_for(2s);
 				int produceAmount = uniformDistribution(false);
+				auto timeStamp = std::chrono::system_clock::now();
 				prodLogs[id].open(logFileName, std::ios_base::app);
-				prodLogs[id] << "Produced " << produceAmount << " items.\n";
+				prodLogs[id] << "[" << std::chrono::system_clock::to_time_t(timeStamp) << "] " << "Produced " << produceAmount << " items.\n";
+				prodLogs[id].close();
 				while(maxInBuffer - buffer < produceAmount){
-					prodLogs[id] << "Can't insert due to lack of space.\n";
+					timeStamp = std::chrono::system_clock::now();
+					prodLogs[id].open(logFileName, std::ios_base::app);
+					prodLogs[id] << "[" << std::chrono::system_clock::to_time_t(timeStamp) << "] " << "Can't insert due to lack of space.\n";
+					prodLogs[id].close();
 					wait(full);
+					std::this_thread::sleep_for(2s);
 				}
 				buffer += produceAmount;
 				writeBuffer(buffer);
-				prodLogs[id] << "Inserted " << produceAmount << " items.\n\n";
+				timeStamp = std::chrono::system_clock::now();
+				prodLogs[id].open(logFileName, std::ios_base::app);
+				prodLogs[id] << "[" << std::chrono::system_clock::to_time_t(timeStamp) << "] " << "Inserted " << produceAmount << " items.\n\n";
 				prodLogs[id].close();
-				signal(empty);
+				if(buffer > maxInBuffer / 2)
+					signal(empty);
 				leave();
-				std::this_thread::sleep_for(2s);
 			}
 		}
 		void consume(unsigned int id){
@@ -60,20 +69,29 @@ class Mon : public Monitor{
 			logFileName += std::to_string(id) += ".txt";
 			while(true){
 				enter();
+				std::this_thread::sleep_for(2s);
 				int consumeAmount = uniformDistribution(true);
+				auto timeStamp = std::chrono::system_clock::now();
 				consLogs[id].open(logFileName, std::ios_base::app);
-				consLogs[id] << "Wants to take " << consumeAmount << " items.\n";
+				consLogs[id] << "[" << std::chrono::system_clock::to_time_t(timeStamp) << "] " << "Wants to take " << consumeAmount << " items.\n";
+				consLogs[id].close();
 				while(buffer < consumeAmount){
-					consLogs[id] << "Can't take " << consumeAmount << " due to lack of items.\n";
+					timeStamp = std::chrono::system_clock::now();
+					consLogs[id].open(logFileName, std::ios_base::app);
+					consLogs[id] << "[" << std::chrono::system_clock::to_time_t(timeStamp) << "] " << "Can't take " << consumeAmount << " due to lack of items.\n";
+					consLogs[id].close();
 					wait(empty);
+					std::this_thread::sleep_for(2s);
 				}
 				buffer -= consumeAmount;
 				writeBuffer(buffer);
-				consLogs[id] << "Took " << consumeAmount << " items.\n\n";
+				timeStamp = std::chrono::system_clock::now();
+				consLogs[id].open(logFileName, std::ios_base::app);
+				consLogs[id] << "[" << std::chrono::system_clock::to_time_t(timeStamp) << "] " << "Took " << consumeAmount << " items.\n\n";
 				consLogs[id].close();
-				signal(full);
+				if(buffer < maxInBuffer / 2)
+					signal(full);
 				leave();
-				std::this_thread::sleep_for(2s);
 			}
 		}
 	private:
@@ -101,8 +119,5 @@ int main(int argc, char **argv){
 		if(i < consAmount)
 			consumers.emplace_back(std::thread(&Mon::consume, &m, i));
 	}
-	if(!consumers.empty())
-		consumers.rbegin()->join();
-	if(!producers.empty())
-		producers.rbegin()->join();
+	producers.begin()->join();
 }	
