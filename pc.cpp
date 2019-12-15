@@ -39,19 +39,21 @@ class Mon : public Monitor{
 			logFileName += std::to_string(id) += ".txt";
 			while(true){
 				enter();
-				std::this_thread::sleep_for(2s);
+				std::this_thread::sleep_for(1s);
 				int produceAmount = uniformDistribution(false);
 				auto timeStamp = std::chrono::system_clock::now();
 				prodLogs[id].open(logFileName, std::ios_base::app);
 				prodLogs[id] << "[" << std::chrono::system_clock::to_time_t(timeStamp) << "] " << "Produced " << produceAmount << " items.\n";
 				prodLogs[id].close();
 				while(maxInBuffer - buffer < produceAmount){
+					if(buffer <= maxInBuffer / 2)
+						signal(empty);
 					timeStamp = std::chrono::system_clock::now();
 					prodLogs[id].open(logFileName, std::ios_base::app);
 					prodLogs[id] << "[" << std::chrono::system_clock::to_time_t(timeStamp) << "] " << "Can't insert due to lack of space.\n";
 					prodLogs[id].close();
 					wait(full);
-					std::this_thread::sleep_for(2s);
+					std::this_thread::sleep_for(1s);
 				}
 				buffer += produceAmount;
 				writeBuffer(buffer);
@@ -69,19 +71,21 @@ class Mon : public Monitor{
 			logFileName += std::to_string(id) += ".txt";
 			while(true){
 				enter();
-				std::this_thread::sleep_for(2s);
+				std::this_thread::sleep_for(1s);
 				int consumeAmount = uniformDistribution(true);
 				auto timeStamp = std::chrono::system_clock::now();
 				consLogs[id].open(logFileName, std::ios_base::app);
 				consLogs[id] << "[" << std::chrono::system_clock::to_time_t(timeStamp) << "] " << "Wants to take " << consumeAmount << " items.\n";
 				consLogs[id].close();
 				while(buffer < consumeAmount){
+					if(buffer >= maxInBuffer / 2)
+						signal(full);
 					timeStamp = std::chrono::system_clock::now();
 					consLogs[id].open(logFileName, std::ios_base::app);
 					consLogs[id] << "[" << std::chrono::system_clock::to_time_t(timeStamp) << "] " << "Can't take " << consumeAmount << " due to lack of items.\n";
 					consLogs[id].close();
 					wait(empty);
-					std::this_thread::sleep_for(2s);
+					std::this_thread::sleep_for(1s);
 				}
 				buffer -= consumeAmount;
 				writeBuffer(buffer);
@@ -100,12 +104,18 @@ class Mon : public Monitor{
 };
 Mon m;
 int main(int argc, char **argv){
-	if(argc < 8)
+	if(argc < 8){
+		std::cout << "Not enough arguments.\n";
 		return 1;
+	}
 	std::stringstream ss;
 	for(int i = 1; i < 8; ++i)
 		ss << argv[i] << " ";
 	ss >> maxInBuffer >> consAmount >> prodAmount >> a >> b >> c >> d;
+	if(prodAmount < 1){
+		std::cout << "There needs to be at least 1 producer.\n";
+		return 2;
+	}
 	std::vector<std::thread> producers;
 	producers.reserve(prodAmount);
 	std::vector<std::thread> consumers;
@@ -119,5 +129,5 @@ int main(int argc, char **argv){
 		if(i < consAmount)
 			consumers.emplace_back(std::thread(&Mon::consume, &m, i));
 	}
-	producers.begin()->join();
+	producers.rbegin()->join();
 }	
